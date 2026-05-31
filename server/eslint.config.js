@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
+import prettierConfig from "eslint-config-prettier";
 
 export default tseslint.config(
   {
@@ -13,5 +14,6 @@ export default tseslint.config(
       ecmaVersion: 2022,
       globals: globals.node,
     },
-  }
+  },
+  prettierConfig
 );
