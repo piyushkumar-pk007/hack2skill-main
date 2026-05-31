@@ -68,9 +68,13 @@ jobs:
         working-directory: client
         run: npm run lint
 
-      - name: Typecheck
+      - name: Typecheck (production sources)
         working-directory: client
         run: npm run typecheck
+
+      - name: Typecheck (test sources)
+        working-directory: client
+        run: npm run typecheck:test
 
       - name: Test
         working-directory: client

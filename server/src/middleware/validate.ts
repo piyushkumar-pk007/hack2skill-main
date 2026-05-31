@@ -14,7 +14,10 @@ export function validateRequest(schemas: {
       }
 
       if (schemas.query) {
-        req.query = schemas.query.parse(req.query) as typeof req.query;
+        // Express 5 defines req.query as a getter-only property on the prototype;
+        // direct assignment throws. Override with Object.defineProperty instead.
+        const parsed = schemas.query.parse(req.query) as typeof req.query;
+        Object.defineProperty(req, "query", { value: parsed, writable: false, configurable: true });
       }
 
       if (schemas.body) {

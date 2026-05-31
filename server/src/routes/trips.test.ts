@@ -1,39 +1,47 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 
-// Mock the DB-connection gate so tests can connect via setup.ts directly.
 vi.mock("../middleware/database.js", () => ({
   ensureDatabaseConnection: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
 const { default: app } = await import("../app.js");
-
 const api = request(app);
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Shared state – created once in beforeAll to stay within auth rate limits.
 // ---------------------------------------------------------------------------
 
-function uniqueEmail() {
-  return `trips-test-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
-}
+let ownerToken: string;
+let intruderToken: string;
+
+const TRIPS_IP = "10.30.1.1";
+const INTRUDER_IP = "10.30.1.2";
 
 const VALID_PASSWORD = "SuperSecure!123";
 
-async function createAuthenticatedUser() {
-  const email = uniqueEmail();
-  const res = await api.post("/api/auth/register").send({
-    email,
-    password: VALID_PASSWORD,
-    displayName: "Trip Tester",
-    timezone: "UTC",
-  });
-  return {
-    accessToken: res.body.accessToken as string,
-    userId: res.body.user.id as string,
-    cookie: (res.headers["set-cookie"] as string[]) ?? [],
-  };
+function uniqueEmail() {
+  return `trips-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`;
 }
+
+async function register(ip: string) {
+  const res = await api
+    .post("/api/auth/register")
+    .set("X-Forwarded-For", ip)
+    .send({ email: uniqueEmail(), password: VALID_PASSWORD, displayName: "Trip Tester", timezone: "UTC" });
+  return { accessToken: res.body.accessToken as string, cookie: (res.headers["set-cookie"] as string[]) ?? [] };
+}
+
+beforeAll(async () => {
+  const owner = await register(TRIPS_IP);
+  ownerToken = owner.accessToken;
+  const intruder = await register(INTRUDER_IP);
+  intruderToken = intruder.accessToken;
+});
+
+// ---------------------------------------------------------------------------
+// Shared trip body
+// ---------------------------------------------------------------------------
 
 const VALID_TRIP_BODY = {
   title: "Lisbon Weekend",
@@ -74,9 +82,7 @@ const VALID_TRIP_BODY = {
 
 describe("POST /api/trips", () => {
   it("creates a trip and returns 201 with trip payload", async () => {
-    const { accessToken } = await createAuthenticatedUser();
-    const res = await api.post("/api/trips").set("Authorization", `Bearer ${accessToken}`).send(VALID_TRIP_BODY);
-
+    const res = await api.post("/api/trips").set("Authorization", `Bearer ${ownerToken}`).send(VALID_TRIP_BODY);
     expect(res.status).toBe(201);
     expect(res.body.trip).toBeDefined();
     expect(typeof res.body.trip.id).toBe("string");
@@ -89,25 +95,22 @@ describe("POST /api/trips", () => {
   });
 
   it("returns 400 when constraints are missing from the body", async () => {
-    const { accessToken } = await createAuthenticatedUser();
-    const res = await api.post("/api/trips").set("Authorization", `Bearer ${accessToken}`).send({ title: "Bad Trip" });
+    const res = await api.post("/api/trips").set("Authorization", `Bearer ${ownerToken}`).send({ title: "Bad Trip" });
     expect(res.status).toBe(400);
   });
 
   it("returns 400 when startDate is after endDate", async () => {
-    const { accessToken } = await createAuthenticatedUser();
     const body = {
       ...VALID_TRIP_BODY,
       constraints: { ...VALID_TRIP_BODY.constraints, startDate: "2026-08-05", endDate: "2026-08-04" },
     };
-    const res = await api.post("/api/trips").set("Authorization", `Bearer ${accessToken}`).send(body);
+    const res = await api.post("/api/trips").set("Authorization", `Bearer ${ownerToken}`).send(body);
     expect(res.status).toBe(400);
   });
 
   it("returns 400 when partySize is zero", async () => {
-    const { accessToken } = await createAuthenticatedUser();
     const body = { ...VALID_TRIP_BODY, constraints: { ...VALID_TRIP_BODY.constraints, partySize: 0 } };
-    const res = await api.post("/api/trips").set("Authorization", `Bearer ${accessToken}`).send(body);
+    const res = await api.post("/api/trips").set("Authorization", `Bearer ${ownerToken}`).send(body);
     expect(res.status).toBe(400);
   });
 });
@@ -117,49 +120,37 @@ describe("POST /api/trips", () => {
 // ---------------------------------------------------------------------------
 
 describe("GET /api/trips/:id", () => {
-  it("returns the trip for the authenticated owner", async () => {
-    const { accessToken } = await createAuthenticatedUser();
-    const create = await api.post("/api/trips").set("Authorization", `Bearer ${accessToken}`).send(VALID_TRIP_BODY);
-    const tripId = create.body.trip.id as string;
+  let tripId: string;
 
-    const get = await api.get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${accessToken}`);
-    expect(get.status).toBe(200);
-    expect(get.body.trip.id).toBe(tripId);
+  beforeAll(async () => {
+    const res = await api.post("/api/trips").set("Authorization", `Bearer ${ownerToken}`).send(VALID_TRIP_BODY);
+    tripId = res.body.trip.id as string;
+  });
+
+  it("returns the trip for the authenticated owner", async () => {
+    const res = await api.get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${ownerToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.trip.id).toBe(tripId);
   });
 
   it("returns 404 when a different user tries to read another user's trip", async () => {
-    const owner = await createAuthenticatedUser();
-    const intruder = await createAuthenticatedUser();
-
-    const create = await api.post("/api/trips").set("Authorization", `Bearer ${owner.accessToken}`).send(VALID_TRIP_BODY);
-    const tripId = create.body.trip.id as string;
-
-    const get = await api.get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${intruder.accessToken}`);
-    expect(get.status).toBe(404);
+    const res = await api.get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${intruderToken}`);
+    expect(res.status).toBe(404);
   });
 
   it("returns 401 when no token is provided", async () => {
-    const { accessToken } = await createAuthenticatedUser();
-    const create = await api.post("/api/trips").set("Authorization", `Bearer ${accessToken}`).send(VALID_TRIP_BODY);
-    const tripId = create.body.trip.id as string;
-
-    const get = await api.get(`/api/trips/${tripId}`);
-    expect(get.status).toBe(401);
+    const res = await api.get(`/api/trips/${tripId}`);
+    expect(res.status).toBe(401);
   });
 
   it("returns 400 for a malformed trip id (not a valid ObjectId)", async () => {
-    const { accessToken } = await createAuthenticatedUser();
-    const get = await api.get("/api/trips/not-a-valid-id").set("Authorization", `Bearer ${accessToken}`);
-    expect(get.status).toBe(400);
+    const res = await api.get("/api/trips/not-a-valid-id").set("Authorization", `Bearer ${ownerToken}`);
+    expect(res.status).toBe(400);
   });
 
   it("sets Cache-Control: private on the response", async () => {
-    const { accessToken } = await createAuthenticatedUser();
-    const create = await api.post("/api/trips").set("Authorization", `Bearer ${accessToken}`).send(VALID_TRIP_BODY);
-    const tripId = create.body.trip.id as string;
-
-    const get = await api.get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${accessToken}`);
-    expect(get.headers["cache-control"]).toMatch(/private/);
+    const res = await api.get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${ownerToken}`);
+    expect(res.headers["cache-control"]).toMatch(/private/);
   });
 });
 
@@ -168,44 +159,29 @@ describe("GET /api/trips/:id", () => {
 // ---------------------------------------------------------------------------
 
 describe("POST /api/trips/:id/replan", () => {
-  async function createTrip(accessToken: string) {
-    const res = await api.post("/api/trips").set("Authorization", `Bearer ${accessToken}`).send(VALID_TRIP_BODY);
-    return res.body.trip as { id: string; itinerary: { revision: number } };
-  }
+  let tripId: string;
+  let initialRevision: number;
+
+  beforeAll(async () => {
+    const res = await api.post("/api/trips").set("Authorization", `Bearer ${ownerToken}`).send(VALID_TRIP_BODY);
+    tripId = res.body.trip.id as string;
+    initialRevision = res.body.trip.itinerary.revision as number;
+  });
 
   it("bumps the revision number on a successful replan", async () => {
-    const { accessToken } = await createAuthenticatedUser();
-    const trip = await createTrip(accessToken);
-    expect(trip.itinerary.revision).toBe(1);
-
-    const replan = await api
-      .post(`/api/trips/${trip.id}/replan`)
-      .set("Authorization", `Bearer ${accessToken}`)
-      .send({});
-
-    expect(replan.status).toBe(200);
-    expect(replan.body.trip.itinerary.revision).toBe(2);
+    expect(initialRevision).toBe(1);
+    const res = await api.post(`/api/trips/${tripId}/replan`).set("Authorization", `Bearer ${ownerToken}`).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.trip.itinerary.revision).toBe(2);
   });
 
   it("returns 404 when a non-owner attempts to replan", async () => {
-    const owner = await createAuthenticatedUser();
-    const intruder = await createAuthenticatedUser();
-
-    const trip = await createTrip(owner.accessToken);
-
-    const res = await api
-      .post(`/api/trips/${trip.id}/replan`)
-      .set("Authorization", `Bearer ${intruder.accessToken}`)
-      .send({});
-
+    const res = await api.post(`/api/trips/${tripId}/replan`).set("Authorization", `Bearer ${intruderToken}`).send({});
     expect(res.status).toBe(404);
   });
 
   it("returns 401 with no token", async () => {
-    const { accessToken } = await createAuthenticatedUser();
-    const trip = await createTrip(accessToken);
-
-    const res = await api.post(`/api/trips/${trip.id}/replan`).send({});
+    const res = await api.post(`/api/trips/${tripId}/replan`).send({});
     expect(res.status).toBe(401);
   });
 });
@@ -215,13 +191,19 @@ describe("POST /api/trips/:id/replan", () => {
 // ---------------------------------------------------------------------------
 
 describe("GET /api/trips/:id/events (SSE)", () => {
-  it("returns text/event-stream with correct SSE headers", async () => {
-    const { accessToken } = await createAuthenticatedUser();
-    const create = await api.post("/api/trips").set("Authorization", `Bearer ${accessToken}`).send(VALID_TRIP_BODY);
-    const tripId = create.body.trip.id as string;
+  let tripId: string;
 
-    // Open the SSE stream but abort immediately so the test doesn't hang
-    const req = api.get(`/api/trips/${tripId}/events`).set("Authorization", `Bearer ${accessToken}`).timeout(1500).buffer(false);
+  beforeAll(async () => {
+    const res = await api.post("/api/trips").set("Authorization", `Bearer ${ownerToken}`).send(VALID_TRIP_BODY);
+    tripId = res.body.trip.id as string;
+  });
+
+  it("returns text/event-stream with correct SSE headers", async () => {
+    const req = api
+      .get(`/api/trips/${tripId}/events`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .timeout(1500)
+      .buffer(false);
 
     await new Promise<void>((resolve) => {
       req.on("response", (res) => {
@@ -231,16 +213,12 @@ describe("GET /api/trips/:id/events (SSE)", () => {
         req.abort();
         resolve();
       });
-      req.on("error", () => resolve()); // Ignore abort errors
+      req.on("error", () => resolve());
       req.end();
     });
   });
 
   it("returns 401 when no token is provided for the SSE endpoint", async () => {
-    const { accessToken } = await createAuthenticatedUser();
-    const create = await api.post("/api/trips").set("Authorization", `Bearer ${accessToken}`).send(VALID_TRIP_BODY);
-    const tripId = create.body.trip.id as string;
-
     const res = await api.get(`/api/trips/${tripId}/events`);
     expect(res.status).toBe(401);
   });
