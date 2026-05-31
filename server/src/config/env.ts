@@ -49,8 +49,9 @@ function parseOrigins(value: string | undefined): string[] {
 
 function getDefaultClientOrigins(): string[] {
   if ((process.env.NODE_ENV ?? "development") === "production") {
-    const deployedOrigin = process.env.VERCEL_URL ? normalizeOrigin(`https://${process.env.VERCEL_URL}`) : null;
-    return deployedOrigin ? [deployedOrigin] : [];
+    const vercelUrl = process.env.VERCEL_URL?.trim();
+    const clientOrigin = vercelUrl ? normalizeOrigin(`https://${vercelUrl.replace(/\.vercel\.app$/, "-client.vercel.app")}`) : null;
+    return clientOrigin ? [clientOrigin] : [];
   }
 
   return [...DEFAULT_LOCAL_CLIENT_ORIGINS];

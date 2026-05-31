@@ -35,18 +35,18 @@ describe("isAllowedClientOrigin", () => {
     expect(isAllowedClientOrigin("http://127.0.0.1:5173")).toBe(true);
   });
 
-  it("allows the deployed Vercel origin exactly", () => {
+  it("allows the deployed client Vercel origin inferred from the server host", () => {
     process.env.NODE_ENV = "production";
     process.env.VERCEL_URL = "hack2skill-main.vercel.app";
 
-    expect(isAllowedClientOrigin("https://hack2skill-main.vercel.app")).toBe(true);
+    expect(isAllowedClientOrigin("https://hack2skill-main-client.vercel.app")).toBe(true);
     expect(isAllowedClientOrigin("https://example.com")).toBe(false);
   });
 
-  it("does not treat unrelated Vercel subdomains as allowed", () => {
+  it("does not treat the server origin as the allowed client origin", () => {
     process.env.NODE_ENV = "production";
     process.env.VERCEL_URL = "hack2skill-main.vercel.app";
 
-    expect(isAllowedClientOrigin("https://another-project.vercel.app")).toBe(false);
+    expect(isAllowedClientOrigin("https://hack2skill-main.vercel.app")).toBe(false);
   });
 });
