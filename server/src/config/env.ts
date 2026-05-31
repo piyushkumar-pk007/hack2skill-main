@@ -1,6 +1,4 @@
 const DEFAULT_PORT = 3000;
-const DEFAULT_CLIENT_ORIGIN = "http://localhost:5173";
-const DEFAULT_PRODUCTION_CLIENT_ORIGIN = "https://*.vercel.app";
 const DEFAULT_LOCAL_CLIENT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
 const DEFAULT_ACCESS_TOKEN_TTL_MINUTES = 15;
 const DEFAULT_REFRESH_TOKEN_TTL_DAYS = 7;
@@ -35,50 +33,27 @@ function getNumberEnv(name: string, fallback: number): number {
   return parsed;
 }
 
-function getDefaultClientOrigins(): string[] {
-  const origins = [...DEFAULT_LOCAL_CLIENT_ORIGINS];
-
-  if ((process.env.NODE_ENV ?? "development") === "production") {
-    origins.push(DEFAULT_PRODUCTION_CLIENT_ORIGIN);
+function normalizeOrigin(value: string): string | null {
+  try {
+    return new URL(value.trim().replace(/\/$/, "")).origin;
+  } catch {
+    return null;
   }
-
-  return origins;
 }
 
 function parseOrigins(value: string | undefined): string[] {
-  const rawOrigins = value ? value.split(",") : [];
-
-  return rawOrigins
-    .map((origin) => origin.trim().replace(/\/$/, ""))
-    .filter(Boolean);
+  return (value ? value.split(",") : [])
+    .map((origin) => normalizeOrigin(origin))
+    .filter((origin): origin is string => Boolean(origin));
 }
 
-function matchesWildcardOrigin(pattern: string, candidate: string): boolean {
-  if (!pattern.includes("*")) {
-    return false;
+function getDefaultClientOrigins(): string[] {
+  if ((process.env.NODE_ENV ?? "development") === "production") {
+    const deployedOrigin = process.env.VERCEL_URL ? normalizeOrigin(`https://${process.env.VERCEL_URL}`) : null;
+    return deployedOrigin ? [deployedOrigin] : [];
   }
 
-  try {
-    const patternUrl = new URL(pattern);
-    const candidateUrl = new URL(candidate);
-
-    if (patternUrl.protocol !== candidateUrl.protocol) {
-      return false;
-    }
-
-    if (patternUrl.port && patternUrl.port !== candidateUrl.port) {
-      return false;
-    }
-
-    if (!patternUrl.hostname.startsWith("*.")) {
-      return false;
-    }
-
-    const suffix = patternUrl.hostname.slice(1);
-    return candidateUrl.hostname.endsWith(suffix) && candidateUrl.hostname.length > suffix.length;
-  } catch {
-    return false;
-  }
+  return [...DEFAULT_LOCAL_CLIENT_ORIGINS];
 }
 
 function isEquivalentLocalOrigin(pattern: URL, candidate: URL): boolean {
@@ -92,7 +67,11 @@ function isEquivalentLocalOrigin(pattern: URL, candidate: URL): boolean {
 }
 
 export function isAllowedClientOrigin(origin: string): boolean {
-  const normalizedOrigin = origin.trim().replace(/\/$/, "");
+  const normalizedOrigin = normalizeOrigin(origin);
+  if (!normalizedOrigin) {
+    return false;
+  }
+
   const candidateUrl = new URL(normalizedOrigin);
 
   return [...parseOrigins(process.env.CLIENT_ORIGIN), ...getDefaultClientOrigins()].some((allowedOrigin) => {
@@ -106,11 +85,11 @@ export function isAllowedClientOrigin(origin: string): boolean {
       if (isEquivalentLocalOrigin(patternUrl, candidateUrl)) {
         return true;
       }
-
-      return matchesWildcardOrigin(allowedOrigin, normalizedOrigin);
     } catch {
       return false;
     }
+
+    return false;
   });
 }
 
@@ -118,7 +97,7 @@ export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   isProduction: (process.env.NODE_ENV ?? "development") === "production",
   port: getNumberEnv("PORT", DEFAULT_PORT),
-  clientOrigin: (process.env.CLIENT_ORIGIN ?? DEFAULT_CLIENT_ORIGIN).trim().replace(/\/$/, ""),
+  clientOrigin: parseOrigins(process.env.CLIENT_ORIGIN)[0] ?? getDefaultClientOrigins()[0] ?? "http://localhost:5173",
   clientOrigins: [...parseOrigins(process.env.CLIENT_ORIGIN), ...getDefaultClientOrigins()],
   jwtAccessSecret: getRequiredEnv("JWT_ACCESS_SECRET"),
   jwtRefreshSecret: getRequiredEnv("JWT_REFRESH_SECRET"),

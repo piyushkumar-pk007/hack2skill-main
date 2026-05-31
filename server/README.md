@@ -30,7 +30,7 @@ PORT=3000
 NODE_ENV=development
 ```
 
-`CLIENT_ORIGIN` accepts a comma-separated list, and wildcard Vercel origins such as `https://*.vercel.app` are supported.
+`CLIENT_ORIGIN` accepts a comma-separated list of exact browser origins. Do not include paths such as `/api`.
 
 Do not commit real credentials. The connection string must never be hardcoded in source.
 
