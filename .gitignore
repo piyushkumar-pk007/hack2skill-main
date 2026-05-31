@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.DS_Store
+Thumbs.db
+
+/client/.env
+/server/.env
+
+/client/node_modules/
+/client/dist/
+/client/coverage/
+
+/server/node_modules/
+/server/dist/
+/server/coverage/
