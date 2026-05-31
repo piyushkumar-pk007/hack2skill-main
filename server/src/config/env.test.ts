@@ -40,6 +40,7 @@ describe("isAllowedClientOrigin", () => {
     process.env.VERCEL_URL = "hack2skill-main.vercel.app";
 
     expect(isAllowedClientOrigin("https://hack2skill-main-client.vercel.app")).toBe(true);
+    expect(isAllowedClientOrigin("http://localhost:5173")).toBe(true);
     expect(isAllowedClientOrigin("https://example.com")).toBe(false);
   });
 

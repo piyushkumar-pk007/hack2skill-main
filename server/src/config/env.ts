@@ -48,13 +48,19 @@ function parseOrigins(value: string | undefined): string[] {
 }
 
 function getDefaultClientOrigins(): string[] {
+  const origins = [...DEFAULT_LOCAL_CLIENT_ORIGINS];
+
   if ((process.env.NODE_ENV ?? "development") === "production") {
     const vercelUrl = process.env.VERCEL_URL?.trim();
     const clientOrigin = vercelUrl ? normalizeOrigin(`https://${vercelUrl.replace(/\.vercel\.app$/, "-client.vercel.app")}`) : null;
-    return clientOrigin ? [clientOrigin] : [];
+    if (clientOrigin) {
+      origins.push(clientOrigin);
+    }
+
+    return origins;
   }
 
-  return [...DEFAULT_LOCAL_CLIENT_ORIGINS];
+  return origins;
 }
 
 function isEquivalentLocalOrigin(pattern: URL, candidate: URL): boolean {
