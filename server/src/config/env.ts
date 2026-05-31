@@ -1,5 +1,6 @@
 const DEFAULT_PORT = 3000;
 const DEFAULT_LOCAL_CLIENT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const DEFAULT_PRODUCTION_CLIENT_ORIGIN = "https://hack2skill-main-client.vercel.app";
 const DEFAULT_ACCESS_TOKEN_TTL_MINUTES = 15;
 const DEFAULT_REFRESH_TOKEN_TTL_DAYS = 7;
 const DEFAULT_REFRESH_COOKIE_NAME = "wayfinder_refresh_token";
@@ -51,8 +52,7 @@ function getDefaultClientOrigins(): string[] {
   const origins = [...DEFAULT_LOCAL_CLIENT_ORIGINS];
 
   if ((process.env.NODE_ENV ?? "development") === "production") {
-    const vercelUrl = process.env.VERCEL_URL?.trim();
-    const clientOrigin = vercelUrl ? normalizeOrigin(`https://${vercelUrl.replace(/\.vercel\.app$/, "-client.vercel.app")}`) : null;
+    const clientOrigin = normalizeOrigin(DEFAULT_PRODUCTION_CLIENT_ORIGIN);
     if (clientOrigin) {
       origins.push(clientOrigin);
     }
