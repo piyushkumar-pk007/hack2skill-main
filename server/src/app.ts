@@ -13,24 +13,25 @@ const app = express();
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
 
+const corsOptions = {
+  origin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {
+    if (!origin || isAllowedClientOrigin(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(null, false);
+  },
+  credentials: true,
+};
+
 app.use(
   helmet.default({
     crossOriginResourcePolicy: false,
   })
 );
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || isAllowedClientOrigin(origin)) {
-        callback(null, true);
-        return;
-      }
-
-      callback(null, false);
-    },
-    credentials: true,
-  })
-);
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 app.use(sanitizeMutableInput);
