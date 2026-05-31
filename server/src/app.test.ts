@@ -13,4 +13,12 @@ describe("GET /api/health", () => {
       realtimeTransport: "sse-or-conditional-polling",
     });
   });
+
+  it("attaches CORS headers for an allowed browser origin", async () => {
+    const response = await request(app).get("/api/health").set("Origin", "http://localhost:5173");
+
+    expect(response.status).toBe(200);
+    expect(response.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+    expect(response.headers["access-control-allow-credentials"]).toBe("true");
+  });
 });

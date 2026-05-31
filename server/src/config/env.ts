@@ -1,5 +1,6 @@
 const DEFAULT_PORT = 3000;
 const DEFAULT_CLIENT_ORIGIN = "http://localhost:5173";
+const DEFAULT_PRODUCTION_CLIENT_ORIGIN = "https://*.vercel.app";
 const DEFAULT_ACCESS_TOKEN_TTL_MINUTES = 15;
 const DEFAULT_REFRESH_TOKEN_TTL_DAYS = 7;
 const DEFAULT_REFRESH_COOKIE_NAME = "wayfinder_refresh_token";
@@ -33,13 +34,61 @@ function getNumberEnv(name: string, fallback: number): number {
   return parsed;
 }
 
+function getDefaultClientOrigins(): string {
+  if ((process.env.NODE_ENV ?? "development") === "production") {
+    return `${DEFAULT_CLIENT_ORIGIN},${DEFAULT_PRODUCTION_CLIENT_ORIGIN}`;
+  }
+
+  return DEFAULT_CLIENT_ORIGIN;
+}
+
 function parseOrigins(value: string | undefined): string[] {
-  const raw = value ?? DEFAULT_CLIENT_ORIGIN;
+  const raw = value ?? getDefaultClientOrigins();
 
   return raw
     .split(",")
     .map((origin) => origin.trim().replace(/\/$/, ""))
     .filter(Boolean);
+}
+
+function matchesWildcardOrigin(pattern: string, candidate: string): boolean {
+  if (!pattern.includes("*")) {
+    return false;
+  }
+
+  try {
+    const patternUrl = new URL(pattern);
+    const candidateUrl = new URL(candidate);
+
+    if (patternUrl.protocol !== candidateUrl.protocol) {
+      return false;
+    }
+
+    if (patternUrl.port && patternUrl.port !== candidateUrl.port) {
+      return false;
+    }
+
+    if (!patternUrl.hostname.startsWith("*.")) {
+      return false;
+    }
+
+    const suffix = patternUrl.hostname.slice(1);
+    return candidateUrl.hostname.endsWith(suffix) && candidateUrl.hostname.length > suffix.length;
+  } catch {
+    return false;
+  }
+}
+
+export function isAllowedClientOrigin(origin: string): boolean {
+  const normalizedOrigin = origin.trim().replace(/\/$/, "");
+
+  return parseOrigins(process.env.CLIENT_ORIGIN).some((allowedOrigin) => {
+    if (allowedOrigin === normalizedOrigin) {
+      return true;
+    }
+
+    return matchesWildcardOrigin(allowedOrigin, normalizedOrigin);
+  });
 }
 
 export const env = {

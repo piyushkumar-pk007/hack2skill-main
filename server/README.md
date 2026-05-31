@@ -25,10 +25,12 @@ Copy `.env.example` to `.env` and set:
 
 ```bash
 MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>/<database>?retryWrites=true&w=majority
-CLIENT_ORIGIN=http://localhost:5173
+CLIENT_ORIGIN=http://localhost:5173,https://your-wayfinder-client.vercel.app
 PORT=3000
 NODE_ENV=development
 ```
+
+`CLIENT_ORIGIN` accepts a comma-separated list, and wildcard Vercel origins such as `https://*.vercel.app` are supported.
 
 Do not commit real credentials. The connection string must never be hardcoded in source.
 

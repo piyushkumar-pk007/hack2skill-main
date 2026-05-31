@@ -48,7 +48,7 @@ NODE_ENV=development
 ```
 
 `MONGODB_URI` must always come from `process.env.MONGODB_URI`. No connection strings should be committed anywhere in source.
-`CLIENT_ORIGIN` can be a comma-separated list when you want to allow both local development and your deployed frontend.
+`CLIENT_ORIGIN` can be a comma-separated list when you want to allow both local development and your deployed frontend. Wildcards like `https://*.vercel.app` are supported for Vercel-hosted previews.
 
 ## Real-Time Update Strategy
 

@@ -2,7 +2,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import * as helmet from "helmet";
-import { env } from "./config/env.js";
+import { isAllowedClientOrigin } from "./config/env.js";
 import { ensureDatabaseConnection } from "./middleware/database.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
 import { sanitizeMutableInput } from "./middleware/sanitize.js";
@@ -13,8 +13,6 @@ const app = express();
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
 
-const allowedOrigins = new Set(env.clientOrigins);
-
 app.use(
   helmet.default({
     crossOriginResourcePolicy: false,
@@ -23,12 +21,12 @@ app.use(
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.has(origin.replace(/\/$/, ""))) {
+      if (!origin || isAllowedClientOrigin(origin)) {
         callback(null, true);
         return;
       }
 
-      callback(new Error(`CORS blocked for origin: ${origin}`));
+      callback(null, false);
     },
     credentials: true,
   })
