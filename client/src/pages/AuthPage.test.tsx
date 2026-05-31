@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "jest-axe";
@@ -31,7 +31,12 @@ vi.mock("../hooks/useAuth", () => ({
 // ---------------------------------------------------------------------------
 
 function renderAuthPage() {
-  const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+  // throwOnError:false makes mutateAsync resolve (not reject) when mutationFn throws
+  // so intentional validation errors don't surface as unhandled promise rejections.
+  const qc = new QueryClient({
+    mutationCache: new MutationCache({ onError: () => {} }),
+    defaultOptions: { mutations: { retry: false, throwOnError: false } },
+  });
   return render(
     <MemoryRouter>
       <QueryClientProvider client={qc}>

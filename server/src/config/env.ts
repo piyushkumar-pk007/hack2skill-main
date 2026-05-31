@@ -33,11 +33,21 @@ function getNumberEnv(name: string, fallback: number): number {
   return parsed;
 }
 
+function parseOrigins(value: string | undefined): string[] {
+  const raw = value ?? DEFAULT_CLIENT_ORIGIN;
+
+  return raw
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   isProduction: (process.env.NODE_ENV ?? "development") === "production",
   port: getNumberEnv("PORT", DEFAULT_PORT),
-  clientOrigin: process.env.CLIENT_ORIGIN ?? DEFAULT_CLIENT_ORIGIN,
+  clientOrigin: (process.env.CLIENT_ORIGIN ?? DEFAULT_CLIENT_ORIGIN).trim().replace(/\/$/, ""),
+  clientOrigins: parseOrigins(process.env.CLIENT_ORIGIN),
   jwtAccessSecret: getRequiredEnv("JWT_ACCESS_SECRET"),
   jwtRefreshSecret: getRequiredEnv("JWT_REFRESH_SECRET"),
   accessTokenTtlMinutes: getNumberEnv("ACCESS_TOKEN_TTL_MINUTES", DEFAULT_ACCESS_TOKEN_TTL_MINUTES),

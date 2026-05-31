@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "jest-axe";
@@ -52,9 +52,10 @@ vi.mock("../components/ToastProvider", () => ({
 
 function renderWizard() {
   const qc = new QueryClient({
+    mutationCache: new MutationCache({ onError: () => {} }),
     defaultOptions: {
       queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
+      mutations: { retry: false, throwOnError: false },
     },
   });
   return render(

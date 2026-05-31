@@ -13,6 +13,8 @@ const app = express();
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
 
+const allowedOrigins = new Set(env.clientOrigins);
+
 app.use(
   helmet.default({
     crossOriginResourcePolicy: false,
@@ -20,7 +22,14 @@ app.use(
 );
 app.use(
   cors({
-    origin: env.clientOrigin,
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin.replace(/\/$/, ""))) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     credentials: true,
   })
 );

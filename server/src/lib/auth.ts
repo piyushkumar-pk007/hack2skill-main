@@ -4,6 +4,10 @@ import jwt from "jsonwebtoken";
 import type { Response } from "express";
 import { env } from "../config/env.js";
 
+function getCookieSameSite(): "lax" | "none" {
+  return env.isProduction ? "none" : "lax";
+}
+
 export interface AuthTokenPayload {
   sub: string;
   type: "access" | "refresh";
@@ -44,7 +48,7 @@ export function hashOpaqueToken(token: string): string {
 export function setRefreshTokenCookie(res: Response, token: string) {
   res.cookie(env.refreshCookieName, token, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: getCookieSameSite(),
     secure: env.isProduction,
     maxAge: env.refreshTokenTtlDays * 24 * 60 * 60 * 1000,
     path: "/api/auth",
@@ -54,7 +58,7 @@ export function setRefreshTokenCookie(res: Response, token: string) {
 export function clearRefreshTokenCookie(res: Response) {
   res.clearCookie(env.refreshCookieName, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: getCookieSameSite(),
     secure: env.isProduction,
     path: "/api/auth",
   });

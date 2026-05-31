@@ -4,7 +4,8 @@
       "Bash(Get-ChildItem -Path \"f:\\\\Prompt war\\\\main\" -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Sort-Object)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(npm test *)"
     ]
   }
 }

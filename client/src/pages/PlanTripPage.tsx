@@ -242,7 +242,7 @@ export function PlanTripPage() {
               return;
             }
 
-            void createTripMutation.mutateAsync();
+            createTripMutation.mutate();
           }}
         >
           {currentStep === 0 ? (

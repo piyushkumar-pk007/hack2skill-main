@@ -105,7 +105,7 @@ export function AuthPage() {
           className="stacked-form"
           onSubmit={(event) => {
             event.preventDefault();
-            void mutation.mutateAsync();
+            mutation.mutate();
           }}
         >
           {mode === "register" ? (
