@@ -1,6 +1,7 @@
 const DEFAULT_PORT = 3000;
 const DEFAULT_CLIENT_ORIGIN = "http://localhost:5173";
 const DEFAULT_PRODUCTION_CLIENT_ORIGIN = "https://*.vercel.app";
+const DEFAULT_LOCAL_CLIENT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
 const DEFAULT_ACCESS_TOKEN_TTL_MINUTES = 15;
 const DEFAULT_REFRESH_TOKEN_TTL_DAYS = 7;
 const DEFAULT_REFRESH_COOKIE_NAME = "wayfinder_refresh_token";
@@ -34,19 +35,20 @@ function getNumberEnv(name: string, fallback: number): number {
   return parsed;
 }
 
-function getDefaultClientOrigins(): string {
+function getDefaultClientOrigins(): string[] {
+  const origins = [...DEFAULT_LOCAL_CLIENT_ORIGINS];
+
   if ((process.env.NODE_ENV ?? "development") === "production") {
-    return `${DEFAULT_CLIENT_ORIGIN},${DEFAULT_PRODUCTION_CLIENT_ORIGIN}`;
+    origins.push(DEFAULT_PRODUCTION_CLIENT_ORIGIN);
   }
 
-  return DEFAULT_CLIENT_ORIGIN;
+  return origins;
 }
 
 function parseOrigins(value: string | undefined): string[] {
-  const raw = value ?? getDefaultClientOrigins();
+  const rawOrigins = value ? value.split(",") : [];
 
-  return raw
-    .split(",")
+  return rawOrigins
     .map((origin) => origin.trim().replace(/\/$/, ""))
     .filter(Boolean);
 }
@@ -79,15 +81,36 @@ function matchesWildcardOrigin(pattern: string, candidate: string): boolean {
   }
 }
 
+function isEquivalentLocalOrigin(pattern: URL, candidate: URL): boolean {
+  const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+
+  if (!localHosts.has(pattern.hostname) || !localHosts.has(candidate.hostname)) {
+    return false;
+  }
+
+  return pattern.protocol === candidate.protocol && pattern.port === candidate.port;
+}
+
 export function isAllowedClientOrigin(origin: string): boolean {
   const normalizedOrigin = origin.trim().replace(/\/$/, "");
+  const candidateUrl = new URL(normalizedOrigin);
 
-  return parseOrigins(process.env.CLIENT_ORIGIN).some((allowedOrigin) => {
+  return [...parseOrigins(process.env.CLIENT_ORIGIN), ...getDefaultClientOrigins()].some((allowedOrigin) => {
     if (allowedOrigin === normalizedOrigin) {
       return true;
     }
 
-    return matchesWildcardOrigin(allowedOrigin, normalizedOrigin);
+    try {
+      const patternUrl = new URL(allowedOrigin);
+
+      if (isEquivalentLocalOrigin(patternUrl, candidateUrl)) {
+        return true;
+      }
+
+      return matchesWildcardOrigin(allowedOrigin, normalizedOrigin);
+    } catch {
+      return false;
+    }
   });
 }
 
@@ -96,7 +119,7 @@ export const env = {
   isProduction: (process.env.NODE_ENV ?? "development") === "production",
   port: getNumberEnv("PORT", DEFAULT_PORT),
   clientOrigin: (process.env.CLIENT_ORIGIN ?? DEFAULT_CLIENT_ORIGIN).trim().replace(/\/$/, ""),
-  clientOrigins: parseOrigins(process.env.CLIENT_ORIGIN),
+  clientOrigins: [...parseOrigins(process.env.CLIENT_ORIGIN), ...getDefaultClientOrigins()],
   jwtAccessSecret: getRequiredEnv("JWT_ACCESS_SECRET"),
   jwtRefreshSecret: getRequiredEnv("JWT_REFRESH_SECRET"),
   accessTokenTtlMinutes: getNumberEnv("ACCESS_TOKEN_TTL_MINUTES", DEFAULT_ACCESS_TOKEN_TTL_MINUTES),

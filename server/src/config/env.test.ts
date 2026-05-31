@@ -22,11 +22,24 @@ describe("isAllowedClientOrigin", () => {
     expect(isAllowedClientOrigin("https://client.example.com")).toBe(true);
   });
 
+  it("treats localhost and 127.0.0.1 as local equivalents", () => {
+    process.env.CLIENT_ORIGIN = "http://localhost:5173";
+
+    expect(isAllowedClientOrigin("http://127.0.0.1:5173")).toBe(true);
+  });
+
   it("allows wildcard Vercel origins", () => {
     process.env.NODE_ENV = "production";
     delete process.env.CLIENT_ORIGIN;
 
     expect(isAllowedClientOrigin("https://hack2skill-main.vercel.app")).toBe(true);
     expect(isAllowedClientOrigin("https://example.com")).toBe(false);
+  });
+
+  it("keeps Vercel origins allowed in production even with a narrow env list", () => {
+    process.env.NODE_ENV = "production";
+    process.env.CLIENT_ORIGIN = "http://localhost:5173";
+
+    expect(isAllowedClientOrigin("https://hack2skill-main.vercel.app")).toBe(true);
   });
 });
