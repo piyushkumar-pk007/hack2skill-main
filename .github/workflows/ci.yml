@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Server: lint + typecheck + test
+  # ─────────────────────────────────────────────────────────────────────────────
+  server:
+    name: Server (lint · typecheck · test)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Lint
+        working-directory: server
+        run: npm run lint
+
+      - name: Typecheck
+        working-directory: server
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: server
+        run: npm test
+        env:
+          NODE_ENV: test
+          # JWT secrets for testing – no real secrets needed; env.ts substitutes
+          # 'test-<name>' when VITEST is set and the var is absent
+          VITEST: "true"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Client: lint + typecheck + test
+  # ─────────────────────────────────────────────────────────────────────────────
+  client:
+    name: Client (lint · typecheck · test)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Lint
+        working-directory: client
+        run: npm run lint
+
+      - name: Typecheck
+        working-directory: client
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: client
+        run: npm test

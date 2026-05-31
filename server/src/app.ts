@@ -1,7 +1,7 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
-import helmet from "helmet";
+import * as helmet from "helmet";
 import { env } from "./config/env.js";
 import { ensureDatabaseConnection } from "./middleware/database.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
@@ -14,7 +14,7 @@ app.set("trust proxy", 1);
 app.disable("x-powered-by");
 
 app.use(
-  helmet({
+  helmet.default({
     crossOriginResourcePolicy: false,
   })
 );
